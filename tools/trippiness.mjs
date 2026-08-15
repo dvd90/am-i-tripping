@@ -207,5 +207,9 @@ export function tripScore(frameA, frameB) {
   return { score: Math.round(clamp01(score) * 1000) / 10, metrics };
 }
 
-/** The bar the experience must clear before the work is considered done. */
-export const TRIP_THRESHOLD = 70;
+/**
+ * The bar the experience must clear before the work is considered done.
+ * Every preset scores 74+ with the harness's fixed seed; run-to-run spread is
+ * about a point, so 72 is a real bar rather than a rubber stamp.
+ */
+export const TRIP_THRESHOLD = 72;

@@ -70,7 +70,7 @@ export class TripRenderer {
   private paramBuffer = new Float32Array(PARAM_KEYS.length);
   private uniformCache = new Map<string, WebGLUniformLocation | null>();
   /** Render the heavy pass below native resolution; the present pass hides it. */
-  readonly renderScale: number;
+  private renderScale: number;
 
   constructor(private canvas: HTMLCanvasElement, renderScale = 0.8) {
     const gl = canvas.getContext('webgl2', {
@@ -150,6 +150,22 @@ export class TripRenderer {
     this.targets.forEach(this.destroyTarget, this);
     this.targets = [this.createTarget(w, h), this.createTarget(w, h)];
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /** Wipe both feedback targets to black — a clean slate with no history. */
+  clearHistory(): void {
+    const gl = this.gl;
+    gl.clearColor(0, 0, 0, 1);
+    for (const target of this.targets) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  }
+
+  /** Adjust the scene-pass resolution. Takes effect on the next `resize`. */
+  setRenderScale(scale: number): void {
+    this.renderScale = Math.min(1, Math.max(0.2, scale));
   }
 
   private uniform(program: WebGLProgram, name: string): WebGLUniformLocation | null {

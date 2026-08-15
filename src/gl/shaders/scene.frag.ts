@@ -147,12 +147,21 @@ vec3 blotterTile(vec2 q, float id, float t, float ink, out float mask) {
   col = mix(col, palette(fract(hue + 0.5), 0.0) * 1.3, iris * eyeWhite);
   col = mix(col, vec3(0.02), pupil * eyeWhite);
 
-  // Hard black linework — the printed-ink look.
-  float outline = max(eyeWhite - smoothstep(-0.03, -0.07, lens), 0.0);
-  outline = max(outline, iris * (1.0 - smoothstep(0.26, 0.24, length(e - gaze))));
+  // Hard black linework — the printed-ink look. Blotter art is defined by its
+  // heavy outlines far more than by its palette, so these are drawn thick.
+  float outline = max(eyeWhite - smoothstep(-0.055, -0.13, lens), 0.0);
+  outline = max(outline, iris * (1.0 - smoothstep(0.27, 0.235, length(e - gaze))));
+  // Ring outlines through the rays.
+  float ringEdge = abs(fract(rad * (4.0 + fract(id * 0.53) * 6.0) - t * 0.35) - 0.5);
+  outline = max(outline, (1.0 - smoothstep(0.42, 0.5, ringEdge)) * 0.55 * (1.0 - eyeWhite));
   col = mix(col, vec3(0.03, 0.02, 0.05), outline * ink);
 
-  mask = 1.0 - smoothstep(0.44, 0.5, max(abs(q.x), abs(q.y)));
+  // A printed border just inside the tab edge.
+  float edge = max(abs(q.x), abs(q.y));
+  col = mix(col, vec3(0.04, 0.03, 0.06),
+            smoothstep(0.40, 0.425, edge) * (1.0 - smoothstep(0.455, 0.475, edge)) * ink);
+
+  mask = 1.0 - smoothstep(0.44, 0.5, edge);
   return col;
 }
 
@@ -350,10 +359,21 @@ void main() {
     float seam = 1.0 - smoothstep(0.0, aa, edgeDist);
     float holes = perforation(gridUv, uSheet);
 
-    col = mix(col, vec3(0.02, 0.012, 0.05), seam * ghost * (0.55 + 0.45 * p(P_INK)));
+    // An intact sheet shows *paper* at the seams — that pale dashed grid is the
+    // whole visual signature. Only once it starts tearing do the seams darken
+    // into ink lines running through the vision.
+    vec3 seamColour = mix(vec3(0.96, 0.93, 0.84), vec3(0.02, 0.012, 0.05), uDissolve);
+    col = mix(col, seamColour, seam * ghost * (0.55 + 0.45 * p(P_INK)));
     // Light comes through the punched holes.
-    col = mix(col, vec3(1.0, 0.98, 0.92), holes * ghost * 0.75);
+    col = mix(col, vec3(1.0, 0.98, 0.92), holes * ghost * 0.8);
   }
+
+  // --- paper stock ---------------------------------------------------------
+  // Blotter art is ink on white card: bright, high-key, saturated. The vision
+  // it becomes is lit from within and much darker. Cross-fade the exposure
+  // between the two as the sheet dissolves.
+  float paper = (1.0 - uDissolve) * p(P_BLOTTER);
+  col = mix(col, col * 1.5 + 0.11, paper * 0.85);
 
   // --- strobe, capped well below the photosensitive danger zone ---
   float strobe = 1.0 + p(P_STROBE) * 0.5 * sin(t * 6.0 + bass * 6.0);

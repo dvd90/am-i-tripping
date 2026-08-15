@@ -121,6 +121,7 @@ async function main() {
 
     await page.evaluate(() => {
       window.__trip.hideUi();
+      window.__trip.setSeed(42); // fixed seed: the run must be reproducible
       window.__trip.setCalm(false);
       window.__trip.take();
       window.__trip.forceIntensity(1);   // hold at peak for a fair comparison
@@ -131,6 +132,9 @@ async function main() {
       const started = Date.now();
       process.stdout.write(`   [${index + 1}/${targets.length}] ${id} … `);
       await page.evaluate(({ preset, frames }) => {
+        // Wipe the feedback history first: without this each preset inherits
+        // the previous one's trails and the scores stop being comparable.
+        window.__trip.reset();
         window.__trip.setPreset(preset, true);
         window.__trip.advance(frames); // let the feedback loop fully charge
       }, { preset: id, frames: CHARGE_FRAMES });

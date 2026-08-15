@@ -63,6 +63,10 @@ const state = {
 const pointer = { x: 0.5, y: 0.5, down: false, targetX: 0.5, targetY: 0.5 };
 
 const renderer = new TripRenderer(canvas, prefersReducedMotion ? 0.6 : 0.8);
+// The scene pass is expensive (several fbm evaluations per pixel). Watch the
+// real frame time and give back resolution rather than dropping frames — a
+// psychedelic that stutters isn't hypnotic, it's just broken.
+const perf = { accum: 0, frames: 0, scale: prefersReducedMotion ? 0.6 : 0.8 };
 const audio = new TripAudio();
 
 // ------------------------------------------------------------- the sheet ---
@@ -214,10 +218,10 @@ function step(dt: number): void {
   const dissolve = state.forcedDissolve ?? smoothstep(0.04, 0.72, intensity);
 
   // The world fades up out of black as the sheet is taken.
-  const targetFade = state.stage === 'tripping' ? 1 : 0.85;
+  const targetFade = 1;
   state.fade += (targetFade - state.fade) * Math.min(1, dt * 1.5);
 
-  let params = sanitize(scaleByIntensity(currentParams(), state.stage === 'tripping' ? intensity : 0.55));
+  let params = sanitize(scaleByIntensity(currentParams(), state.stage === 'tripping' ? intensity : 0.62));
   params = { ...params, ...state.overrides };
   if (state.calm) {
     params = sanitize({
@@ -274,10 +278,27 @@ function updateHud(phase: TripPhase, elapsed: number, intensity: number): void {
   scoreEl.textContent = state.score > 0 ? `TRIP ${state.score.toFixed(0)}` : '—';
 }
 
+function adaptResolution(dt: number): void {
+  perf.accum += dt;
+  perf.frames += 1;
+  if (perf.accum < 1.5) return;
+  const fps = perf.frames / perf.accum;
+  perf.accum = 0;
+  perf.frames = 0;
+  const next = fps < 34 ? perf.scale - 0.12 : fps > 57 ? perf.scale + 0.06 : perf.scale;
+  const clamped = clamp(next, 0.34, prefersReducedMotion ? 0.6 : 0.9);
+  if (Math.abs(clamped - perf.scale) > 0.01) {
+    perf.scale = clamped;
+    renderer.setRenderScale(clamped);
+    resize();
+  }
+}
+
 function frame(now: number): void {
   const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
   lastFrame = now;
   step(dt);
+  adaptResolution(dt);
 
   probeTimer += dt;
   if (probeTimer > 0.75) {
@@ -296,6 +317,10 @@ export interface TripApi {
   forceIntensity: (value: number | null) => void;
   forceDissolve: (value: number | null) => void;
   setCalm: (value: boolean) => void;
+  /** Pin the random seed, so a measurement run is reproducible. */
+  setSeed: (seed: number) => void;
+  /** Wipe the feedback history and the clock, for reproducible measurement. */
+  reset: () => void;
   /** Pin a single parameter, or clear all pins with `null`. */
   overrideParam: (key: keyof TripParams | null, value?: number) => void;
   /** Deterministically advance the simulation by `frames` steps of `dt`. */
@@ -321,6 +346,13 @@ const api: TripApi = {
     }
   },
   forceIntensity: (value) => { state.forcedIntensity = value; },
+  setSeed: (seed: number) => { state.seed = seed; },
+  reset: () => {
+    renderer.clearHistory();
+    state.shaderTime = 0;
+    state.takenAt = 0;
+    state.fade = state.stage === 'tripping' ? 1 : 0;
+  },
   overrideParam: (key, value = 0) => {
     if (key === null) state.overrides = {};
     else state.overrides[key] = value;
