@@ -118,9 +118,56 @@ vec3 saturate3(vec3 col, float amount) {
   return mix(vec3(lum), col, amount);
 }
 
+// ------------------------------------------------------------- tab motifs --
+// Distance to a stroked circle / line segment, for drawing printed linework.
+float sdRing(vec2 p, float r, float w) { return abs(length(p) - r) - w; }
+
+float sdSegment(vec2 p, vec2 a, vec2 b, float w) {
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - w;
+}
+
+/** Union of two SDFs. */
+float sdU(float a, float b) { return min(a, b); }
+
+// 19 April 1943: Hofmann's ride home. Two wheels, a frame, a rider.
+float bicycleSdf(vec2 p, float t) {
+  float wob = sin(t * 1.6) * 0.012;      // it wobbles, obviously
+  float spoke = 0.016;
+  vec2 lw = vec2(-0.24, -0.10 + wob), rw = vec2(0.24, -0.10 - wob);
+  float d = sdU(sdRing(p - lw, 0.145, spoke), sdRing(p - rw, 0.145, spoke));
+  // Frame: down tube, seat tube, top tube, chain stay.
+  d = sdU(d, sdSegment(p, lw, vec2(0.02, 0.05), 0.013));
+  d = sdU(d, sdSegment(p, vec2(0.02, 0.05), rw, 0.013));
+  d = sdU(d, sdSegment(p, lw, rw, 0.011));
+  d = sdU(d, sdSegment(p, vec2(0.02, 0.05), vec2(-0.10, 0.10), 0.012));
+  // Handlebars and rider.
+  d = sdU(d, sdSegment(p, vec2(0.24, 0.06), vec2(0.30, 0.14), 0.012));
+  d = sdU(d, sdSegment(p, vec2(-0.10, 0.10), vec2(0.06, 0.24), 0.014));
+  d = sdU(d, sdRing(p - vec2(0.10, 0.30), 0.055, 0.014));
+  d = sdU(d, sdSegment(p, vec2(0.06, 0.22), vec2(0.26, 0.13), 0.011));
+  return d;
+}
+
+// Mountain under a sun and a moon — the other half of the 1943 card.
+float rangeSdf(vec2 p, float t) {
+  float ridge = 0.16 - abs(p.x * 0.9) - abs(p.x - 0.18) * 0.25;
+  float d = abs(p.y - ridge) - 0.014;
+  d = sdU(d, sdRing(p - vec2(0.28, 0.30), 0.075, 0.016));                    // sun
+  float moon = max(sdRing(p - vec2(-0.28, 0.30), 0.075, 0.016),
+                   -(length(p - vec2(-0.23, 0.32)) - 0.075));                // crescent
+  d = sdU(d, moon);
+  d = sdU(d, sdSegment(p, vec2(-0.42, -0.30), vec2(0.42, -0.30), 0.010));    // horizon
+  d = sdU(d, sdRing(p - vec2(0.0, -0.30 + 0.02 * sin(t)), 0.05, 0.012));
+  return d;
+}
+
 // ---------------------------------------------------- blotter tile print ---
 // One tab of the sheet, drawn procedurally in the flat, hard-outlined style of
-// printed blotter art: sunburst rays, concentric rings, and an eye that tracks.
+// printed blotter art. A real sheet prints one design over and over and the
+// next sheet prints another, so the design is chosen by tab id: an eye that
+// tracks you, a bicycle, a mountain range, a spiral.
 vec3 blotterTile(vec2 q, float id, float t, float ink, out float mask) {
   float ang = atan(q.y, q.x);
   float rad = length(q);
@@ -134,7 +181,9 @@ vec3 blotterTile(vec2 q, float id, float t, float ink, out float mask) {
   // Lens-shaped eye: the intersection of two offset discs.
   vec2 e = q * 2.2;
   float lens = max(length(e - vec2(0.0, 0.62)) - 0.95, length(e + vec2(0.0, 0.62)) - 0.95);
-  float eyeWhite = smoothstep(0.02, -0.02, lens);
+  float variant = floor(fract(id * 0.317) * 3.0);
+  float isEye = step(variant, 0.5);
+  float eyeWhite = smoothstep(0.02, -0.02, lens) * isEye;
   vec2 gaze = normalize(vec2(sin(t * 0.7 + id), cos(t * 0.5 + id * 1.7)) + 1e-5) * 0.22;
   float iris = smoothstep(0.30, 0.27, length(e - gaze));
   float pupil = smoothstep(0.13, 0.10, length(e - gaze) * (1.0 + 0.25 * sin(t * 2.0)));
@@ -147,10 +196,26 @@ vec3 blotterTile(vec2 q, float id, float t, float ink, out float mask) {
   col = mix(col, palette(fract(hue + 0.5), 0.0) * 1.3, iris * eyeWhite);
   col = mix(col, vec3(0.02), pupil * eyeWhite);
 
+  // Tabs that aren't eyes print as a bright card — flat dye panel, black
+  // linework on top. Without a light ground the figures have nothing to read
+  // against and the whole sheet goes pastel.
+  float card = (1.0 - isEye) * (1.0 - smoothstep(0.33, 0.39, max(abs(q.x), abs(q.y))));
+  vec3 cardDye = mix(vec3(0.98, 0.96, 0.87), palette(fract(hue + 0.25), 0.1) * 1.25, 0.5);
+  col = mix(col, cardDye, card * 0.8);
+
   // Hard black linework — the printed-ink look. Blotter art is defined by its
   // heavy outlines far more than by its palette, so these are drawn thick.
   float outline = max(eyeWhite - smoothstep(-0.055, -0.13, lens), 0.0);
-  outline = max(outline, iris * (1.0 - smoothstep(0.27, 0.235, length(e - gaze))));
+  outline = max(outline, iris * eyeWhite * (1.0 - smoothstep(0.27, 0.235, length(e - gaze))));
+
+  // The printed figure for this tab, drawn as a crisp stroke.
+  float figure = variant < 1.5 ? bicycleSdf(q, t + id) : rangeSdf(q, t + id);
+  // Fatten the stroke: the SDF widths are already baked in, so this only needs
+  // to antialias — but a hairline reads as nothing at tab scale.
+  float figureLine = (1.0 - smoothstep(-0.006, fwidth(figure) * 1.1 + 0.003, figure))
+                   * (1.0 - isEye) * 1.15;
+  outline = max(outline, figureLine);
+
   // Ring outlines through the rays.
   float ringEdge = abs(fract(rad * (4.0 + fract(id * 0.53) * 6.0) - t * 0.35) - 0.5);
   outline = max(outline, (1.0 - smoothstep(0.42, 0.5, ringEdge)) * 0.55 * (1.0 - eyeWhite));
@@ -276,7 +341,11 @@ void main() {
   }
 
   // --- the sheet itself, dissolving tab by tab ---
-  float sheetAmount = p(P_BLOTTER) * (1.0 - uDissolve * 0.85);
+  // While the sheet is intact it *is* the picture — a printed object you are
+  // holding, not a vision. Only as it dissolves does it recede into a ghost of
+  // itself and let the fractal underneath take over.
+  float blot = p(P_BLOTTER);
+  float sheetAmount = mix(mix(0.5, 1.0, blot), blot * 0.3, smoothstep(0.0, 0.9, uDissolve));
   if (sheetAmount > 0.01) {
     vec2 grid = uSheet;
     vec2 sheetUv = uv + vec2(fbm(uv * 3.0 + t * 0.1, 0.4) - 0.5, fbm(uv * 3.0 - t * 0.1, 0.4) - 0.5)
@@ -373,7 +442,9 @@ void main() {
   // it becomes is lit from within and much darker. Cross-fade the exposure
   // between the two as the sheet dissolves.
   float paper = (1.0 - uDissolve) * p(P_BLOTTER);
-  col = mix(col, col * 1.5 + 0.11, paper * 0.85);
+  // Gain, not lift: an additive term this early greys out the black linework,
+  // and the linework is the whole point.
+  col = mix(col, col * 1.6 + 0.035, paper * 0.9);
 
   // --- strobe, capped well below the photosensitive danger zone ---
   float strobe = 1.0 + p(P_STROBE) * 0.5 * sin(t * 6.0 + bass * 6.0);

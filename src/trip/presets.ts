@@ -99,9 +99,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'everything is warm and running',
     hue: 0.14,
     params: {
-      warp: 0.7, fractal: 0.72, kaleido: 0.42, chroma: 0.45, feedback: 0.75,
-      hueCycle: 0.6, breath: 0.65, melt: 0.85, tunnel: 0.35, strobe: 0.15,
-      grain: 0.2, glow: 0.75, blotter: 0.3, ink: 0.35,
+      warp: 0.7, fractal: 0.78, kaleido: 0.42, chroma: 0.45, feedback: 0.7,
+      hueCycle: 0.72, breath: 0.65, melt: 0.85, tunnel: 0.42, strobe: 0.15,
+      grain: 0.2, glow: 0.75, blotter: 0.42, ink: 0.52,
     },
   },
   {
@@ -143,9 +143,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'gentle, mostly',
     hue: 0.5,
     params: {
-      warp: 0.4, fractal: 0.72, kaleido: 0.45, chroma: 0.26, feedback: 0.4,
-      hueCycle: 0.42, breath: 0.5, melt: 0.28, tunnel: 0.3, strobe: 0.05,
-      grain: 0.15, glow: 0.4, blotter: 0.6, ink: 0.45,
+      warp: 0.42, fractal: 0.84, kaleido: 0.55, chroma: 0.3, feedback: 0.45,
+      hueCycle: 0.56, breath: 0.5, melt: 0.3, tunnel: 0.32, strobe: 0.05,
+      grain: 0.15, glow: 0.45, blotter: 0.7, ink: 0.62,
     },
   },
 ]);
@@ -166,14 +166,24 @@ export function lerpParams(a: TripParams, b: TripParams, t: number): TripParams 
 }
 
 /**
+ * Parameters describing the printed object rather than the hallucination. The
+ * sheet in your hand is just as printed before you take anything as after, so
+ * these must not fade out with the dose.
+ */
+export const UNSCALED_KEYS: readonly (keyof TripParams)[] = ['blotter', 'ink'];
+
+/**
  * Scale a parameter set by trip intensity: at zero dose the world is nearly
  * still, at peak it is fully unleashed. A floor keeps a little life in the
  * frame even when sober.
  */
 export function scaleByIntensity(params: TripParams, intensity: number): TripParams {
   const i = clamp(intensity);
+  const gain = lerp(0.18, 1, i);
   const out = {} as TripParams;
-  for (const key of PARAM_KEYS) out[key] = params[key] * lerp(0.18, 1, i);
+  for (const key of PARAM_KEYS) {
+    out[key] = UNSCALED_KEYS.includes(key) ? params[key] : params[key] * gain;
+  }
   return out;
 }
 

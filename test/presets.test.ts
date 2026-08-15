@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   PRESETS, PARAM_KEYS, MAX_STROBE, DEFAULT_PRESET_ID, getPreset,
-  lerpParams, scaleByIntensity, sanitize, toFloatArray,
+  lerpParams, scaleByIntensity, sanitize, toFloatArray, UNSCALED_KEYS,
 } from '../src/trip/presets';
 import {
   shepardVoices, binauralPair, justRatio, beatForIntensity, PENTATONIC, SHEPARD_BASE_HZ,
@@ -88,9 +88,24 @@ describe('scaleByIntensity', () => {
     expect(calm.warp).toBeGreaterThan(0);
   });
 
+  it('never fades the printed sheet — it is printed whether you dosed or not', () => {
+    const sober = scaleByIntensity(PRESETS[0].params, 0);
+    expect(sober.blotter).toBe(PRESETS[0].params.blotter);
+    expect(sober.ink).toBe(PRESETS[0].params.ink);
+    expect(sober.warp).toBeLessThan(PRESETS[0].params.warp);
+  });
+
   it('is the identity at full dose', () => {
     const peak = scaleByIntensity(PRESETS[5].params, 1);
     for (const key of PARAM_KEYS) expect(peak[key]).toBeCloseTo(PRESETS[5].params[key], 10);
+  });
+
+  it('scales every parameter except the printed ones', () => {
+    for (const key of PARAM_KEYS) {
+      const scaled = scaleByIntensity(PRESETS[5].params, 0.5)[key];
+      if (UNSCALED_KEYS.includes(key)) expect(scaled, key).toBe(PRESETS[5].params[key]);
+      else expect(scaled, key).toBeLessThan(PRESETS[5].params[key]);
+    }
   });
 
   it('increases monotonically with intensity', () => {

@@ -55,7 +55,8 @@ That harness earned its keep. It found:
   self-zooming loop replicates a texel outward until one colour eats the frame.
   It falls back to RGBA8 and keeps LINEAR instead.
 
-Scores at the fixed harness seed, worst preset 73.8, mean 77.0.
+At the fixed harness seed every preset clears 72 with the worst around 73 and a
+mean of 77.5, reproducible to about a point across runs.
 
 ## How it works
 
@@ -72,6 +73,12 @@ src/
   gl/renderer.ts      two programs, ping-pong feedback framebuffers
   gl/shaders/         the actual hallucination
 ```
+
+Tabs print one of three designs chosen by tab id, drawn as signed distance
+fields with heavy printed strokes: an eye that tracks you, Hofmann's bicycle
+(it wobbles), and a mountain range under a sun and a crescent moon. The paper
+tears away as the dose comes up, but the print doesn't leave — the same motifs
+re-tile inside the kaleidoscope as a mandala of repeats.
 
 The scene pass runs: breathe → tunnel-zoom → mouse gravity well → melt →
 kaleidoscope fold → domain-warped fbm → tab motifs → screen-print separation →
