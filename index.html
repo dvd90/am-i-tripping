@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07020f" />
+    <title>AM I TRIPPING?</title>
+    <meta name="description" content="A blotter sheet that dissolves into a WebGL hallucination. Take a tab." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌀</text></svg>" />
+  </head>
+  <body>
+    <canvas id="stage" aria-label="Psychedelic animation"></canvas>
+
+    <!-- ── the sheet: choose a tab ───────────────────────────────────── -->
+    <section id="gate" class="screen">
+      <div class="gate-inner">
+        <h1 class="title" data-text="AM I TRIPPING?">AM I TRIPPING?</h1>
+        <p class="sub">a blotter sheet · 19 april 1943 · take one and find out</p>
+
+        <div id="tabs" class="tabs" role="radiogroup" aria-label="Choose a tab"></div>
+
+        <button id="take" class="take" type="button">TAKE&nbsp;A&nbsp;TAB</button>
+
+        <p class="warn">
+          ⚠ Flashing colours, rapid motion and deep contrast. Not for anyone with photosensitive
+          epilepsy. Press <kbd>C</kbd> at any time for calm mode. It's only pixels — no substances
+          required, or endorsed.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── the trip: HUD ─────────────────────────────────────────────── -->
+    <section id="hud" class="hud" hidden>
+      <div class="hud-row">
+        <span id="phase" class="phase">COME UP</span>
+        <span id="clock" class="clock">0:00</span>
+      </div>
+      <div class="meter"><div id="meter-fill" class="meter-fill"></div></div>
+      <div class="hud-row">
+        <span id="preset-name" class="preset-name">BICYCLE DAY</span>
+        <span id="trip-score" class="score">—</span>
+      </div>
+      <p id="tagline" class="tagline"></p>
+      <p class="keys">
+        <kbd>1</kbd>–<kbd>8</kbd> sheets · <kbd>space</kbd> redose · <kbd>C</kbd> calm ·
+        <kbd>M</kbd> sound · <kbd>H</kbd> hide · <kbd>F</kbd> full · <kbd>R</kbd> reseed
+      </p>
+    </section>
+
+    <div id="flash" class="flash" aria-hidden="true"></div>
+    <noscript><p class="noscript">This experience needs JavaScript and WebGL2.</p></noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
