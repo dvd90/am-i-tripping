@@ -262,7 +262,15 @@ export function tripScore(frameA, frameB) {
 
 /**
  * The bar the experience must clear before the work is considered done.
- * Every preset scores 74+ with the harness's fixed seed; run-to-run spread is
- * about a point, so 72 is a real bar rather than a rubber stamp.
+ *
+ * Scored over a time horizon rather than at one instant. The composition
+ * genuinely breathes — it cycles between dense filigree and big bold shapes,
+ * and a single sample is really a sample of one arbitrary phase. So a preset is
+ * judged on two numbers: the mean across the horizon, which is what a viewer
+ * actually experiences over a sitting, and the minimum, which guards against
+ * the picture having any properly dead moments.
  */
-export const TRIP_THRESHOLD = 72;
+export const TRIP_THRESHOLD = 82;
+
+/** No moment in the cycle may fall below this, however good the average. */
+export const TRIP_FLOOR = 77;

@@ -79,9 +79,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'the syllable tiles itself forever',
     hue: 0.12,
     params: {
-      warp: 0.55, fractal: 0.78, kaleido: 0.75, chroma: 0.34, feedback: 0.55,
-      hueCycle: 0.62, breath: 0.6, melt: 0.4, tunnel: 0.45, strobe: 0.1,
-      grain: 0.25, glow: 0.6, blotter: 0.7, ink: 0.6, droste: 0.6,
+      warp: 0.62, fractal: 0.84, kaleido: 0.75, chroma: 0.34, feedback: 0.6,
+      hueCycle: 0.46, breath: 0.6, melt: 0.42, tunnel: 0.5, strobe: 0.1,
+      grain: 0.25, glow: 0.6, blotter: 0.8, ink: 0.75, droste: 0.75,
     },
   },
   {
@@ -91,8 +91,8 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     hue: 0.72,
     params: {
       warp: 0.62, fractal: 0.86, kaleido: 0.6, chroma: 0.5, feedback: 0.65,
-      hueCycle: 0.66, breath: 0.7, melt: 0.45, tunnel: 0.55, strobe: 0.18,
-      grain: 0.3, glow: 0.85, blotter: 0.45, ink: 0.5, droste: 0.7,
+      hueCycle: 0.46, breath: 0.7, melt: 0.45, tunnel: 0.55, strobe: 0.18,
+      grain: 0.3, glow: 0.85, blotter: 0.68, ink: 0.72, droste: 0.7,
     },
   },
   {
@@ -101,9 +101,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'everything is warm and running',
     hue: 0.14,
     params: {
-      warp: 0.7, fractal: 0.78, kaleido: 0.42, chroma: 0.45, feedback: 0.7,
-      hueCycle: 0.72, breath: 0.65, melt: 0.85, tunnel: 0.42, strobe: 0.15,
-      grain: 0.2, glow: 0.75, blotter: 0.42, ink: 0.52, droste: 0.5,
+      warp: 0.62, fractal: 0.82, kaleido: 0.45, chroma: 0.45, feedback: 0.65,
+      hueCycle: 0.5, breath: 0.65, melt: 0.62, tunnel: 0.45, strobe: 0.15,
+      grain: 0.2, glow: 0.75, blotter: 0.68, ink: 0.72, droste: 0.6,
     },
   },
   {
@@ -113,7 +113,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     hue: 0.96,
     params: {
       warp: 0.5, fractal: 0.82, kaleido: 0.5, chroma: 0.55, feedback: 0.6,
-      hueCycle: 0.75, breath: 0.5, melt: 0.5, tunnel: 0.4, strobe: 0.2,
+      hueCycle: 0.55, breath: 0.5, melt: 0.5, tunnel: 0.4, strobe: 0.2,
       grain: 0.35, glow: 0.65, blotter: 0.55, ink: 0.55, droste: 0.62,
     },
   },
@@ -123,9 +123,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'the machine elves have notes',
     hue: 0.55,
     params: {
-      warp: 0.95, fractal: 0.95, kaleido: 0.9, chroma: 0.8, feedback: 0.85,
-      hueCycle: 0.9, breath: 0.85, melt: 0.45, tunnel: 0.95, strobe: 0.3,
-      grain: 0.45, glow: 0.9, blotter: 0.2, ink: 0.3, droste: 1.0,
+      warp: 0.68, fractal: 0.82, kaleido: 0.55, chroma: 0.7, feedback: 0.6,
+      hueCycle: 0.5, breath: 0.7, melt: 0.45, tunnel: 0.5, strobe: 0.3,
+      grain: 0.38, glow: 0.85, blotter: 0.72, ink: 0.8, droste: 0.78,
     },
   },
   {
@@ -134,9 +134,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'sliced into someone else’s carousel',
     hue: 0.35,
     params: {
-      warp: 0.85, fractal: 0.64, kaleido: 1.0, chroma: 0.65, feedback: 0.4,
-      hueCycle: 0.55, breath: 0.4, melt: 0.95, tunnel: 0.6, strobe: 0.35,
-      grain: 0.5, glow: 0.5, blotter: 0.35, ink: 0.75, droste: 0.8,
+      warp: 0.58, fractal: 0.76, kaleido: 0.46, chroma: 0.58, feedback: 0.45,
+      hueCycle: 0.4, breath: 0.4, melt: 0.55, tunnel: 0.4, strobe: 0.28,
+      grain: 0.35, glow: 0.52, blotter: 0.75, ink: 0.85, droste: 0.62,
     },
   },
   {
@@ -145,9 +145,9 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     tagline: 'gentle, mostly',
     hue: 0.5,
     params: {
-      warp: 0.42, fractal: 0.84, kaleido: 0.55, chroma: 0.3, feedback: 0.45,
-      hueCycle: 0.56, breath: 0.5, melt: 0.3, tunnel: 0.32, strobe: 0.05,
-      grain: 0.15, glow: 0.45, blotter: 0.7, ink: 0.62, droste: 0.4,
+      warp: 0.48, fractal: 0.74, kaleido: 0.3, chroma: 0.34, feedback: 0.5,
+      hueCycle: 0.32, breath: 0.5, melt: 0.34, tunnel: 0.3, strobe: 0.05,
+      grain: 0.3, glow: 0.55, blotter: 0.85, ink: 0.8, droste: 0.5,
     },
   },
 ]);

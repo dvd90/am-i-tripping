@@ -13,12 +13,13 @@
  */
 
 import { spawn } from 'node:child_process';
+import { readdirSync, statSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { chromium } from 'playwright';
-import { tripScore, TRIP_THRESHOLD } from './trippiness.mjs';
+import { tripScore, TRIP_THRESHOLD, TRIP_FLOOR } from './trippiness.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -30,6 +31,7 @@ function arg(name, fallback) {
 
 const PORT = Number(arg('port', 4319));
 const THRESHOLD = Number(arg('threshold', TRIP_THRESHOLD));
+const FLOOR = Number(arg('floor', TRIP_FLOOR));
 const SHOT_DIR = resolve(root, arg('shots', 'artifacts/frames'));
 const ONLY = arg('preset', null);
 const SAMPLE = { w: 320, h: 180 };
@@ -37,8 +39,43 @@ const SAMPLE = { w: 320, h: 180 };
 // small and the frame counts honest-but-cheap.
 const VIEWPORT = { width: Number(arg('width', 720)), height: Number(arg('height', 405)) };
 const CHARGE_FRAMES = Number(arg('frames', 90));
+/** Extra frames to advance between successive samples along the time horizon. */
+const SAMPLE_FRAMES = [0, 105, 105, 105, 105];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Newest mtime under a directory tree. */
+function newestMtime(dir) {
+  let newest = 0;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) newest = Math.max(newest, newestMtime(full));
+    else newest = Math.max(newest, statSync(full).mtimeMs);
+  }
+  return newest;
+}
+
+/**
+ * Refuse to score a stale build. A failed `tsc` leaves the previous bundle in
+ * place, and scoring that reports numbers for code that was never compiled —
+ * which has already happened twice, both times because of a stray backtick
+ * inside a GLSL template literal.
+ */
+function assertFreshBuild() {
+  const src = Math.max(
+    newestMtime(join(root, 'src')),
+    newestMtime(join(root, 'tools')),
+    statSync(join(root, 'index.html')).mtimeMs,
+  );
+  const built = newestMtime(join(root, 'dist'));
+  if (built < src) {
+    const age = ((src - built) / 1000).toFixed(0);
+    throw new Error(
+      `dist/ is ${age}s older than src/ — the build did not succeed. `
+      + 'Run `npm run build` and fix the errors before scoring.',
+    );
+  }
+}
 
 async function startServer() {
   const child = spawn(process.execPath, [join(root, 'server.mjs')], {
@@ -85,6 +122,7 @@ const bar = (v, width = 22) => '█'.repeat(Math.round(v * width)).padEnd(width,
 
 async function main() {
   await mkdir(SHOT_DIR, { recursive: true });
+  assertFreshBuild();
   const server = await startServer();
 
   // Use the pre-installed full Chromium (the headless shell has no WebGL) and
@@ -139,14 +177,34 @@ async function main() {
         window.__trip.advance(frames); // let the feedback loop fully charge
       }, { preset: id, frames: CHARGE_FRAMES });
 
-      const a = await grab(page);
-      await page.evaluate(() => window.__trip.advance(6));
-      const b = await grab(page);
+      // Score at several points along a time horizon, not at one instant.
+      // Nobody watches this for a second and a half; if the picture decays as
+      // it runs, a single early sample will never see it. The preset's score
+      // is its WORST moment, because that is what a viewer actually sits with.
+      const samples = [];
+      for (const [step, gap] of SAMPLE_FRAMES.entries()) {
+        if (gap > 0) await page.evaluate((n) => window.__trip.advance(n), gap);
+        const a = await grab(page);
+        await page.evaluate(() => window.__trip.advance(6));
+        const b = await grab(page);
+        const scored = tripScore(a, b);
+        samples.push({ atFrame: CHARGE_FRAMES + SAMPLE_FRAMES.slice(0, step + 1)
+          .reduce((x, y) => x + y, 0), ...scored });
+      }
 
-      const { score, metrics } = tripScore(a, b);
-      results.push({ id, score, metrics });
+      const worstSample = samples.reduce((lo, x) => (x.score < lo.score ? x : lo));
+      const mean = samples.reduce((sum, x) => sum + x.score, 0) / samples.length;
+      results.push({
+        id,
+        score: mean,
+        floor: worstSample.score,
+        metrics: worstSample.metrics,
+        overTime: samples.map((x) => ({ atFrame: x.atFrame, score: x.score })),
+      });
       await page.screenshot({ path: join(SHOT_DIR, `${id}.png`) });
-      console.log(`${score.toFixed(1)}  (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+      console.log(`${mean.toFixed(1)} (floor ${worstSample.score.toFixed(1)})  `
+        + `[${samples.map((x) => x.score.toFixed(0)).join(' ')}]  `
+        + `(${((Date.now() - started) / 1000).toFixed(1)}s)`);
     }
 
     if (errors.length) throw new Error(`page errors:\n${errors.join('\n')}`);
@@ -166,9 +224,10 @@ async function main() {
   console.log('║                   A M   I   T R I P P I N G ?                    ║');
   console.log('╚══════════════════════════════════════════════════════════════════╝\n');
 
-  for (const { id, score, metrics } of results) {
-    const verdict = score >= THRESHOLD ? '✅' : '❌';
-    console.log(`${verdict}  ${id.padEnd(18)} ${String(score.toFixed(1)).padStart(5)} / 100`);
+  for (const { id, score, floor, metrics } of results) {
+    const verdict = score >= THRESHOLD && floor >= FLOOR ? '✅' : '❌';
+    console.log(`${verdict}  ${id.padEnd(18)} ${String(score.toFixed(1)).padStart(5)} / 100`
+      + `   floor ${floor.toFixed(1)}`);
     for (const [key, value] of Object.entries(metrics)) {
       console.log(`      ${key.padEnd(15)} ${bar(value)} ${value.toFixed(3)}`);
     }
@@ -178,14 +237,16 @@ async function main() {
   const scores = results.map((r) => r.score);
   const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
   const worst = Math.min(...scores);
-  const passed = worst >= THRESHOLD;
+  const lowestFloor = Math.min(...results.map((r) => r.floor));
+  const passed = worst >= THRESHOLD && lowestFloor >= FLOOR;
 
   await writeFile(
     join(SHOT_DIR, 'report.json'),
-    JSON.stringify({ threshold: THRESHOLD, mean, worst, results }, null, 2),
+    JSON.stringify({ threshold: THRESHOLD, floor: FLOOR, mean, worst, lowestFloor, results }, null, 2),
   );
 
-  console.log(`   mean ${mean.toFixed(1)}   worst ${worst.toFixed(1)}   threshold ${THRESHOLD}`);
+  console.log(`   mean ${mean.toFixed(1)}   worst preset ${worst.toFixed(1)} (need ${THRESHOLD})`
+    + `   lowest moment ${lowestFloor.toFixed(1)} (need ${FLOOR})`);
   console.log(passed
     ? '\n🌈 VERDICT: yes. you are tripping.\n'
     : '\n😐 VERDICT: not trippy enough. go again.\n');

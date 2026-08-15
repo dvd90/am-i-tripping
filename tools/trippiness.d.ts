@@ -26,3 +26,4 @@ export function rgbToHsv(r: number, g: number, b: number): { h: number; s: numbe
 export function tripScore(a: Frame, b?: Frame): { score: number; metrics: TripMetrics };
 export const TRIP_WEIGHTS: Readonly<Record<keyof TripMetrics, number>>;
 export const TRIP_THRESHOLD: number;
+export const TRIP_FLOOR: number;

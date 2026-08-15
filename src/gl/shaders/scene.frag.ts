@@ -98,7 +98,8 @@ vec2 kaleido(vec2 v, float segments) {
  * and translating the tile over time is an infinite zoom that never arrives.
  * Shearing the angle against log(r) turns the rings into a spiral staircase.
  */
-vec2 droste(vec2 v, float amount, float twist, float t) {
+vec2 droste(vec2 v, float amount, float twist, float t, out float jacobian) {
+  jacobian = 1.0;
   float r = length(v);
   if (r < 1e-5 || amount < 0.001) return v;
   float logR = log(r);
@@ -107,10 +108,24 @@ vec2 droste(vec2 v, float amount, float twist, float t) {
   // One period of log-r == one octave of self-similarity.
   float period = mix(1.6, 0.75, amount);      // tighter period == deeper nesting
   a += logR * twist * 1.1;                    // spiral shear
-  logR = mod(logR + t * 0.11, period);        // the endless zoom
+  float wrapped = mod(logR + t * 0.11, period); // the endless zoom
 
-  vec2 spiralled = exp(logR) * vec2(cos(a), sin(a));
-  return mix(v, spiralled, amount);
+  vec2 spiralled = exp(wrapped) * vec2(cos(a), sin(a));
+  // How much this map locally stretches or squashes space. exp() over a wrapped
+  // log axis compresses hard at the bottom of each period, so as the wrap
+  // sweeps outward it periodically flattens the fractal into featureless
+  // plateaus — the score swung by twenty points at the sweep frequency. Report
+  // the local scale so the caller can raise the fractal's frequency to match.
+  float localScale = exp(wrapped) / r;
+  // Compensating the frequency helps but cannot rescue the worst phases: where
+  // the map squashes hardest there is simply no room left for structure. So
+  // back the transform off exactly there, sliding toward ordinary space, and
+  // let it run at full strength everywhere else. The recursion survives; the
+  // dead phases don't.
+  float health = smoothstep(0.22, 0.75, localScale);
+  float applied = amount * mix(0.35, 1.0, health);
+  jacobian = mix(1.0, localScale, applied);
+  return mix(v, spiralled, applied);
 }
 
 // Iterated domain warping — noise whose *input* is noise. This is what makes
@@ -280,12 +295,14 @@ void main() {
   float breath = 1.0 + p(P_BREATH) * 0.22 * sin(t * 0.9 + bass * 3.0)
                      + bass * 0.09 * p(P_BREATH);
   st /= breath;
+  float worldScale = 1.0 / breath;
 
   // --- the pull toward the vanishing point ---
   float tunnel = p(P_TUNNEL);
   st = rotate(st, sin(t * 0.13) * 0.6 * tunnel + t * 0.02 * tunnel);
   float zoom = 1.0 - tunnel * 0.35 * (0.5 + 0.5 * sin(t * 0.21));
   st *= zoom;
+  worldScale *= zoom;
 
   // --- the mouse is a gravity well in the middle of the picture ---
   vec2 mouse = (uMouse.xy - 0.5) * vec2(uRes.x / uRes.y, 1.0);
@@ -299,15 +316,36 @@ void main() {
   st.y += meltAmt * 0.28 * fbm(vec2(st.x * 2.5, t * 0.25), 0.5) * smoothstep(-0.1, 0.6, st.y);
 
   // --- kaleidoscopic mirror ---
-  float segments = floor(mix(2.0, 16.0, p(P_KALEIDO)) + 0.5);
+  float segments = floor(mix(2.0, 10.0, p(P_KALEIDO)) + 0.5);
   vec2 kst = kaleido(st, segments);
-  st = mix(st, kst, smoothstep(0.02, 0.25, p(P_KALEIDO)));
+  float kaleidoMix = smoothstep(0.02, 0.25, p(P_KALEIDO));
+  st = mix(st, kst, kaleidoMix);
+  // NB: raising the fractal frequency to compensate for the angular squeeze
+  // was tried and made things worse — past a point, more frequency is always
+  // sub-pixel mush. The fix for a thin wedge is a wider wedge, which is why the
+  // segment count is capped below where it used to run.
+  worldScale *= mix(1.0, 1.0 / pow(segments * 0.5, 0.22), kaleidoMix);
 
   // --- droste recursion: self-similar at every scale ---
-  st = droste(st, p(P_DROSTE) * (0.35 + 0.65 * dose), p(P_DROSTE) * 0.8, t);
+  float drosteJacobian;
+  st = droste(st, p(P_DROSTE) * (0.35 + 0.65 * dose), p(P_DROSTE) * 0.8, t, drosteJacobian);
+  worldScale *= clamp(drosteJacobian, 0.2, 4.0);
 
   // --- the fractal substrate ---
-  vec2 warped = domainWarp(st * (1.6 + treble * 1.2), p(P_WARP) * (0.5 + dose), t);
+  // Domain warping multiplies effective spatial frequency, so the most extreme
+  // presets were folding themselves into sub-pixel chaos that averages back to
+  // grey. Back the base frequency off as the warp climbs: heavy warping should
+  // make the structure wilder, not smaller.
+  float warpAmt = p(P_WARP);
+  // Detail compensation. The breath and tunnel terms slowly scale the world,
+  // and magnifying a fixed-frequency fractal just makes its features bigger and
+  // sparser — over a few seconds the picture visibly empties out. A real
+  // fractal does the opposite: approach it and more structure appears. Tracking
+  // the frequency against the world scale keeps the detail constant through the
+  // whole zoom cycle instead of only at the moment the loop happens to start.
+  float detailComp = 1.0 / mix(1.0, clamp(worldScale, 0.16, 2.0), 0.8);
+  vec2 warped = domainWarp(st * (1.6 + treble * 1.2) / (1.0 + warpAmt * 1.2) * detailComp,
+                           warpAmt * (0.5 + dose), t);
   float field = fbm(warped * 1.3 + t * 0.05, p(P_FRACTAL));
   float veins = abs(fbm(warped * 3.1 - t * 0.09, p(P_FRACTAL)) - 0.5) * 2.0;
   veins = pow(1.0 - veins, 3.0); // bright filaments through the noise
@@ -341,7 +379,7 @@ void main() {
       float mid = mcell.x * 7.0 + mcell.y * 13.0 + uSeed + float(i) * 31.0;
       float mmask;
       vec3 motif = blotterTile(mlocal, mid, t, p(P_INK), mmask);
-      float strength = (0.20 + 0.34 * dose) * (0.35 + 0.65 * p(P_BLOTTER))
+      float strength = (0.20 + 0.34 * dose) * mix(0.5, 1.0, p(P_BLOTTER))
                      * (i == 0 ? 1.0 : 0.6);
       col = mix(col, motif, mmask * strength);
     }
@@ -456,7 +494,12 @@ void main() {
   // Drawn *after* the feedback mix so it stays razor sharp while everything
   // underneath smears. However far the trip goes, you never quite stop seeing
   // the perforated grid you took it off.
-  float ghost = p(P_BLOTTER) * (0.30 + 0.55 * (1.0 - uDissolve));
+  // The warp and the recursion breathe between dense filigree and big bold
+  // shapes, and at the sparse end of that cycle the frame has very little in
+  // it. The printed grid does not depend on any of that machinery, so it is the
+  // one thing that can hold structure in every single frame — give it a floor
+  // rather than letting a low blotter setting erase it entirely.
+  float ghost = mix(0.4, 1.0, p(P_BLOTTER)) * (0.30 + 0.55 * (1.0 - uDissolve));
   if (ghost > 0.01) {
     vec2 gridUv = uv + vec2(sin(uv.y * 9.0 + t * 0.4), cos(uv.x * 9.0 - t * 0.35))
                        * 0.004 * (1.0 + uDissolve * 3.0);
@@ -484,9 +527,13 @@ void main() {
   // and the linework is the whole point.
   col = mix(col, col * 1.6 + 0.035, paper * 0.9);
 
-  // --- strobe, capped well below the photosensitive danger zone ---
-  float strobe = 1.0 + p(P_STROBE) * 0.5 * sin(t * 6.0 + bass * 6.0);
-  col *= strobe;
+  // NB: the strobe is deliberately NOT applied here. It is a global brightness
+  // multiplier, and applying it before the contrast stretch means every dim
+  // phase of the pulse pushes the picture below the stretch's black point and
+  // crushes the colour out of it — the score oscillated by 20 points at the
+  // strobe frequency. It also has no business being baked into the feedback
+  // buffer, where it would leave brightness pulses in the trails. It belongs at
+  // the very end of the present pass, and that is where it now lives.
 
   col = saturate3(col, 1.25 + dose * 0.5 + level * 0.3);
   fragColor = vec4(clamp(col, 0.0, 4.0), 1.0);
