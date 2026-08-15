@@ -17,6 +17,7 @@ uniform float uParams[15];
 uniform float uFade;   // 0 = black, 1 = fully present
 
 #define P_CHROMA  3
+#define P_STROBE  9
 #define P_GRAIN   10
 #define P_GLOW    11
 #define P_INK     13
@@ -62,15 +63,29 @@ void main() {
     col += max(sum - 0.55, 0.0) * glow * 1.6;
   }
 
-  // Hue-preserving contrast stretch. The peak imagery drifts to uniformly
-  // mid-luminance saturated colour — vivid but flat — because nothing in the
-  // hallucination is black or white the way ink and paper are. Pushing the
-  // luminance apart while holding the chroma ratio restores the punch without
-  // touching hue. It runs *before* the saturation lift and the quantiser, so
-  // whatever chroma the stretch clips is put straight back — done afterwards it
-  // costs a tenth of the colourfulness.
+  // --- local tone mapping -------------------------------------------------
+  // A single global contrast curve has to pick one black point for the whole
+  // frame, so the darker presets get their shadows crushed and lose colour that
+  // is genuinely there — one of them measured half the colourfulness of the
+  // others while looking, to the eye, just as vivid. Estimating the local
+  // exposure from a wide blur and stretching against *that* lifts contrast
+  // everywhere without crushing anything, and it is hue-preserving: only the
+  // luminance moves, the chroma ratio is held.
+  vec3 wide = vec3(0.0);
+  for (int i = 0; i < 6; i++) {
+    float a = float(i) * 1.0471975512 + uTime * 0.07;
+    wide += texture(uScene, clamp(buv + vec2(cos(a), sin(a)) * 0.075, 0.0, 1.0)).rgb;
+  }
+  float local = dot(wide / 6.0, vec3(0.2126, 0.7152, 0.0722));
   float lum0 = dot(col, vec3(0.2126, 0.7152, 0.0722));
-  float stretched = smoothstep(0.14, 0.86, lum0);
+  // Ease the adaptation off as the dose drops. An intact blotter sheet is a
+  // bright, evenly lit printed object, and adapting to it just pulls the black
+  // point up and turns the paper grey — local adaptation is for the vision, not
+  // for the thing in your hand.
+  float adapt = 0.3 + 0.7 * uIntensity;
+  float black = mix(0.04, clamp(local * 0.42, 0.015, 0.34), adapt);
+  float white = mix(0.96, clamp(local * 1.85 + 0.10, 0.30, 1.30), adapt);
+  float stretched = smoothstep(black, white, lum0);
   col *= (stretched + 0.03) / (lum0 + 0.03);
 
   // --- screen print --------------------------------------------------------
@@ -94,6 +109,11 @@ void main() {
   col = col / (1.0 + col * 0.55);
   col = pow(max(col, 0.0), vec3(0.85));
   col += vec3(0.008, 0.005, 0.018) * (1.0 + uIntensity);
+
+  // Strobe last of all: a pure output brightness pulse, applied after every
+  // tone decision has been made, and capped well below the photosensitive
+  // danger zone by sanitize() on the way in.
+  col *= 1.0 + p(P_STROBE) * 0.5 * sin(uTime * 6.0);
 
   fragColor = vec4(clamp(col * uFade, 0.0, 1.0), 1.0);
 }
