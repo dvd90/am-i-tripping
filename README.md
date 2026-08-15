@@ -12,7 +12,7 @@ There is no substance involved and none endorsed. It's a shader.
 ```bash
 npm install
 npm run dev          # http://localhost:5173
-npm test             # 88 unit tests
+npm test             # 90 unit tests
 npm run trip:loop    # build, then score the real thing in a browser
 ```
 
