@@ -15,7 +15,7 @@ import { tripScore } from './trippiness.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const [preset, ...pins] = process.argv.slice(2);
 const PORT = 4327;
-const SAMPLE = { w: 200, h: 112 };
+const SAMPLE = { w: 320, h: 180 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const server = spawn(process.execPath, [join(root, 'server.mjs')], {

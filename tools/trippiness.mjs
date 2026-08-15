@@ -176,14 +176,66 @@ export function mirrorSymmetry(frame) {
   return count === 0 ? 0 : clamp01(sum / count);
 }
 
+/**
+ * Box-downsample a frame by 2. Used to walk an image down the scale pyramid.
+ * @param {Frame} frame
+ */
+export function halveFrame(frame) {
+  assertFrame(frame);
+  const w = Math.max(1, frame.width >> 1);
+  const h = Math.max(1, frame.height >> 1);
+  const out = new Uint8ClampedArray(w * h * 4);
+  const src = frame.data;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const o = (y * w + x) * 4;
+      for (let c = 0; c < 4; c++) {
+        const a = src[((y * 2) * frame.width + x * 2) * 4 + c];
+        const b = src[((y * 2) * frame.width + Math.min(frame.width - 1, x * 2 + 1)) * 4 + c];
+        const d = src[(Math.min(frame.height - 1, y * 2 + 1) * frame.width + x * 2) * 4 + c];
+        const e = src[(Math.min(frame.height - 1, y * 2 + 1) * frame.width
+                      + Math.min(frame.width - 1, x * 2 + 1)) * 4 + c];
+        out[o + c] = (a + b + d + e) >> 2;
+      }
+    }
+  }
+  return { data: out, width: w, height: h };
+}
+
+/**
+ * Multi-scale detail: the geometric mean of edge density across three octaves.
+ *
+ * This is the metric that separates a genuinely fractal image from a merely
+ * busy one. Fine noise scores high at full resolution and collapses to nothing
+ * once halved; a soft gradient scores low everywhere. Only structure that
+ * survives at coarse *and* fine scales — self-similar structure — scores well,
+ * and a geometric mean means one empty octave drags the whole thing down.
+ * @param {Frame} frame
+ */
+export function multiScaleDetail(frame) {
+  assertFrame(frame);
+  let current = frame;
+  let product = 1;
+  let levels = 0;
+  for (let i = 0; i < 3; i++) {
+    if (current.width < 8 || current.height < 8) break;
+    product *= Math.max(1e-4, edgeDensity(current));
+    levels++;
+    current = halveFrame(current);
+  }
+  if (levels === 0) return 0;
+  return clamp01(Math.pow(product, 1 / levels));
+}
+
 /** Weights for the composite score. Exported so tests can assert they sum to 1. */
 export const TRIP_WEIGHTS = Object.freeze({
-  colorfulness: 0.26,
-  hueEntropy: 0.22,
-  saturation: 0.14,
-  edgeDensity: 0.18,
-  temporalFlux: 0.14,
-  mirrorSymmetry: 0.06,
+  colorfulness: 0.22,
+  hueEntropy: 0.20,
+  saturation: 0.12,
+  edgeDensity: 0.14,
+  temporalFlux: 0.13,
+  mirrorSymmetry: 0.05,
+  multiScaleDetail: 0.14,
 });
 
 /**
@@ -201,6 +253,7 @@ export function tripScore(frameA, frameB) {
     // Symmetry is gated by structure: a blank wall is perfectly symmetric and
     // deeply un-trippy. Only mirrored *detail* earns credit here.
     mirrorSymmetry: mirrorSymmetry(frameA) * Math.sqrt(edges),
+    multiScaleDetail: multiScaleDetail(frameA),
   };
   let score = 0;
   for (const [key, weight] of Object.entries(TRIP_WEIGHTS)) score += metrics[key] * weight;

@@ -40,6 +40,8 @@ export interface TripParams {
   blotter: number;
   /** Heavy black cartoon linework, blotter-print style. */
   ink: number;
+  /** Droste recursion: the image containing itself, forever, in a spiral. */
+  droste: number;
 }
 
 export interface TripPreset {
@@ -53,7 +55,7 @@ export interface TripPreset {
 
 export const PARAM_KEYS = [
   'warp', 'fractal', 'kaleido', 'chroma', 'feedback', 'hueCycle', 'breath',
-  'melt', 'tunnel', 'strobe', 'grain', 'glow', 'blotter', 'ink',
+  'melt', 'tunnel', 'strobe', 'grain', 'glow', 'blotter', 'ink', 'droste',
 ] as const satisfies readonly (keyof TripParams)[];
 
 /** Never let the strobe reach seizure-inducing territory, whatever a preset asks for. */
@@ -68,7 +70,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.42, fractal: 0.72, kaleido: 0.25, chroma: 0.35, feedback: 0.5,
       hueCycle: 0.3, breath: 0.55, melt: 0.35, tunnel: 0.3, strobe: 0.12,
-      grain: 0.3, glow: 0.55, blotter: 0.85, ink: 0.9,
+      grain: 0.3, glow: 0.55, blotter: 0.85, ink: 0.9, droste: 0.45,
     },
   },
   {
@@ -79,7 +81,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.55, fractal: 0.78, kaleido: 0.75, chroma: 0.34, feedback: 0.55,
       hueCycle: 0.62, breath: 0.6, melt: 0.4, tunnel: 0.45, strobe: 0.1,
-      grain: 0.25, glow: 0.6, blotter: 0.7, ink: 0.6,
+      grain: 0.25, glow: 0.6, blotter: 0.7, ink: 0.6, droste: 0.6,
     },
   },
   {
@@ -90,7 +92,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.62, fractal: 0.86, kaleido: 0.6, chroma: 0.5, feedback: 0.65,
       hueCycle: 0.66, breath: 0.7, melt: 0.45, tunnel: 0.55, strobe: 0.18,
-      grain: 0.3, glow: 0.85, blotter: 0.45, ink: 0.5,
+      grain: 0.3, glow: 0.85, blotter: 0.45, ink: 0.5, droste: 0.7,
     },
   },
   {
@@ -101,7 +103,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.7, fractal: 0.78, kaleido: 0.42, chroma: 0.45, feedback: 0.7,
       hueCycle: 0.72, breath: 0.65, melt: 0.85, tunnel: 0.42, strobe: 0.15,
-      grain: 0.2, glow: 0.75, blotter: 0.42, ink: 0.52,
+      grain: 0.2, glow: 0.75, blotter: 0.42, ink: 0.52, droste: 0.5,
     },
   },
   {
@@ -112,7 +114,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.5, fractal: 0.82, kaleido: 0.5, chroma: 0.55, feedback: 0.6,
       hueCycle: 0.75, breath: 0.5, melt: 0.5, tunnel: 0.4, strobe: 0.2,
-      grain: 0.35, glow: 0.65, blotter: 0.55, ink: 0.55,
+      grain: 0.35, glow: 0.65, blotter: 0.55, ink: 0.55, droste: 0.62,
     },
   },
   {
@@ -123,7 +125,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.95, fractal: 0.95, kaleido: 0.9, chroma: 0.8, feedback: 0.85,
       hueCycle: 0.9, breath: 0.85, melt: 0.45, tunnel: 0.95, strobe: 0.3,
-      grain: 0.45, glow: 0.9, blotter: 0.2, ink: 0.3,
+      grain: 0.45, glow: 0.9, blotter: 0.2, ink: 0.3, droste: 1.0,
     },
   },
   {
@@ -134,7 +136,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.85, fractal: 0.64, kaleido: 1.0, chroma: 0.65, feedback: 0.4,
       hueCycle: 0.55, breath: 0.4, melt: 0.95, tunnel: 0.6, strobe: 0.35,
-      grain: 0.5, glow: 0.5, blotter: 0.35, ink: 0.75,
+      grain: 0.5, glow: 0.5, blotter: 0.35, ink: 0.75, droste: 0.8,
     },
   },
   {
@@ -145,7 +147,7 @@ export const PRESETS: readonly TripPreset[] = Object.freeze([
     params: {
       warp: 0.42, fractal: 0.84, kaleido: 0.55, chroma: 0.3, feedback: 0.45,
       hueCycle: 0.56, breath: 0.5, melt: 0.3, tunnel: 0.32, strobe: 0.05,
-      grain: 0.15, glow: 0.45, blotter: 0.7, ink: 0.62,
+      grain: 0.15, glow: 0.45, blotter: 0.7, ink: 0.62, droste: 0.4,
     },
   },
 ]);

@@ -13,7 +13,7 @@ uniform sampler2D uScene;
 uniform vec2  uRes;
 uniform float uTime;
 uniform float uIntensity;
-uniform float uParams[14];
+uniform float uParams[15];
 uniform float uFade;   // 0 = black, 1 = fully present
 
 #define P_CHROMA  3
@@ -62,6 +62,17 @@ void main() {
     col += max(sum - 0.55, 0.0) * glow * 1.6;
   }
 
+  // Hue-preserving contrast stretch. The peak imagery drifts to uniformly
+  // mid-luminance saturated colour — vivid but flat — because nothing in the
+  // hallucination is black or white the way ink and paper are. Pushing the
+  // luminance apart while holding the chroma ratio restores the punch without
+  // touching hue. It runs *before* the saturation lift and the quantiser, so
+  // whatever chroma the stretch clips is put straight back — done afterwards it
+  // costs a tenth of the colourfulness.
+  float lum0 = dot(col, vec3(0.2126, 0.7152, 0.0722));
+  float stretched = smoothstep(0.14, 0.86, lum0);
+  col *= (stretched + 0.03) / (lum0 + 0.03);
+
   // --- screen print --------------------------------------------------------
   // Blotter art is printed in a handful of flat, violent dyes. Quantising here
   // — in the present pass, outside the feedback loop — pushes channels to their
@@ -82,7 +93,7 @@ void main() {
   // Filmic-ish curve, then a lift so blacks glow rather than crush.
   col = col / (1.0 + col * 0.55);
   col = pow(max(col, 0.0), vec3(0.85));
-  col += vec3(0.015, 0.01, 0.03) * (1.0 + uIntensity);
+  col += vec3(0.008, 0.005, 0.018) * (1.0 + uIntensity);
 
   fragColor = vec4(clamp(col * uFade, 0.0, 1.0), 1.0);
 }

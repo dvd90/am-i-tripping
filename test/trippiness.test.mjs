@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   colorfulness, hueEntropy, saturation, edgeDensity, temporalFlux,
-  mirrorSymmetry, tripScore, rgbToHsv, TRIP_WEIGHTS,
+  mirrorSymmetry, tripScore, rgbToHsv, TRIP_WEIGHTS, halveFrame, multiScaleDetail,
 } from '../tools/trippiness.mjs';
 
 /** Build a frame from a per-pixel colour function. */
@@ -123,6 +123,70 @@ describe('mirrorSymmetry', () => {
   it('is well below 1 for an asymmetric gradient', () => {
     const ramp = makeFrame(48, 48, (x) => [x * 5, 255 - x * 5, 128]);
     expect(mirrorSymmetry(ramp)).toBeLessThan(0.7);
+  });
+});
+
+describe('halveFrame', () => {
+  it('halves both dimensions', () => {
+    const small = halveFrame(hsvWheel);
+    expect(small.width).toBe(24);
+    expect(small.height).toBe(24);
+    expect(small.data.length).toBe(24 * 24 * 4);
+  });
+
+  it('averages each 2x2 block', () => {
+    const quad = makeFrame(2, 2, (x, y) => {
+      const v = [0, 100, 200, 255][y * 2 + x];
+      return [v, v, v];
+    });
+    const small = halveFrame(quad);
+    expect(small.width).toBe(1);
+    expect(small.data[0]).toBe(Math.floor((0 + 100 + 200 + 255) / 4));
+  });
+
+  it('survives odd dimensions without reading out of bounds', () => {
+    const odd = makeFrame(7, 5, (x, y) => [x * 30, y * 40, 128]);
+    const small = halveFrame(odd);
+    expect(small.width).toBe(3);
+    expect(small.height).toBe(2);
+    for (const v of small.data) expect(Number.isFinite(v)).toBe(true);
+  });
+});
+
+describe('multiScaleDetail', () => {
+  it('is ~0 on a flat field', () => {
+    expect(multiScaleDetail(flatGray)).toBeLessThan(0.02);
+  });
+
+  it('rates self-similar structure above single-scale noise', () => {
+    // White noise is maximally busy at full resolution and averages to nothing
+    // once halved. A multi-octave pattern keeps structure at every scale.
+    let seed = 1;
+    const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const noise = makeFrame(64, 64, () => {
+      const v = rand() * 255;
+      return [v, v, v];
+    });
+    const fractalish = makeFrame(64, 64, (x, y) => {
+      let v = 0;
+      for (const f of [2, 4, 8, 16]) v += Math.sin(x / f) * Math.sin(y / f) * (64 / f);
+      const c = 128 + v * 2;
+      return [c, c, c];
+    });
+    expect(multiScaleDetail(fractalish)).toBeGreaterThan(multiScaleDetail(noise));
+  });
+
+  it('stays within 0..1', () => {
+    for (const frame of [flatGray, hsvWheel, mirrored]) {
+      const v = multiScaleDetail(frame);
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('tolerates frames too small to build a pyramid', () => {
+    const tiny = makeFrame(4, 4, () => [255, 0, 0]);
+    expect(multiScaleDetail(tiny)).toBeGreaterThanOrEqual(0);
   });
 });
 

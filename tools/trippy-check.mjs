@@ -32,7 +32,7 @@ const PORT = Number(arg('port', 4319));
 const THRESHOLD = Number(arg('threshold', TRIP_THRESHOLD));
 const SHOT_DIR = resolve(root, arg('shots', 'artifacts/frames'));
 const ONLY = arg('preset', null);
-const SAMPLE = { w: 200, h: 112 };
+const SAMPLE = { w: 320, h: 180 };
 // Software rendering (SwiftShader) is the only GPU in CI, so keep the surface
 // small and the frame counts honest-but-cheap.
 const VIEWPORT = { width: Number(arg('width', 720)), height: Number(arg('height', 405)) };

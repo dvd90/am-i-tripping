@@ -21,7 +21,7 @@ uniform float uTime;
 uniform float uIntensity;     // 0..1 dose curve
 uniform vec3  uMouse;         // xy in 0..1, z = held
 uniform vec4  uAudio;         // bass, mid, treble, level
-uniform float uParams[14];
+uniform float uParams[15];
 uniform float uPresetHue;
 uniform float uDissolve;      // 0 = intact blotter sheet, 1 = fully melted
 uniform float uSeed;
@@ -44,6 +44,7 @@ uniform vec2  uSheet;         // sheet cols, rows
 #define P_GLOW     11
 #define P_BLOTTER  12
 #define P_INK      13
+#define P_DROSTE   14
 
 float p(int i) { return uParams[i]; }
 
@@ -86,6 +87,30 @@ vec2 kaleido(vec2 v, float segments) {
   a = mod(a, wedge);
   a = abs(a - wedge * 0.5);
   return vec2(cos(a), sin(a)) * r;
+}
+
+/**
+ * DROSTE — the picture inside the picture, forever.
+ *
+ * Work in log-polar space, where a zoom is a translation: log(r) shifts by a
+ * constant when the image scales by a constant. Tiling that axis therefore
+ * tiles *scale itself*, so the same structure recurs at every magnification,
+ * and translating the tile over time is an infinite zoom that never arrives.
+ * Shearing the angle against log(r) turns the rings into a spiral staircase.
+ */
+vec2 droste(vec2 v, float amount, float twist, float t) {
+  float r = length(v);
+  if (r < 1e-5 || amount < 0.001) return v;
+  float logR = log(r);
+  float a = atan(v.y, v.x);
+
+  // One period of log-r == one octave of self-similarity.
+  float period = mix(1.6, 0.75, amount);      // tighter period == deeper nesting
+  a += logR * twist * 1.1;                    // spiral shear
+  logR = mod(logR + t * 0.11, period);        // the endless zoom
+
+  vec2 spiralled = exp(logR) * vec2(cos(a), sin(a));
+  return mix(v, spiralled, amount);
 }
 
 // Iterated domain warping — noise whose *input* is noise. This is what makes
@@ -278,6 +303,9 @@ void main() {
   vec2 kst = kaleido(st, segments);
   st = mix(st, kst, smoothstep(0.02, 0.25, p(P_KALEIDO)));
 
+  // --- droste recursion: self-similar at every scale ---
+  st = droste(st, p(P_DROSTE) * (0.35 + 0.65 * dose), p(P_DROSTE) * 0.8, t);
+
   // --- the fractal substrate ---
   vec2 warped = domainWarp(st * (1.6 + treble * 1.2), p(P_WARP) * (0.5 + dose), t);
   float field = fbm(warped * 1.3 + t * 0.05, p(P_FRACTAL));
@@ -294,19 +322,29 @@ void main() {
   col += veins * p(P_GLOW) * 0.6 * palette(fract(hueShift + 0.15), 0.0);
 
   // --- the print, reappearing inside the vision ---------------------------
-  // The paper tears away, but the *image* on it doesn't leave. Because st
-  // has already been kaleidoscoped, tiling the tab art here scatters eyes,
-  // rays and rings through the hallucination as a mandala of repeats.
+  // The paper tears away, but the image on it doesn't leave. Because st has
+  // already been kaleidoscoped, tiling the tab art here scatters eyes, rays
+  // and rings through the hallucination as a mandala of repeats.
+  //
+  // Drawn at two nested scales, not one. Fine *noise* is worthless — it
+  // averages to grey the moment the picture is viewed at any distance — but
+  // the same bold, hard-outlined figure recurring at several magnifications is
+  // what makes an image read as fractal rather than merely busy.
   {
-    float scale = 1.5 + 2.6 * p(P_TUNNEL) + 1.2 * p(P_KALEIDO);
-    vec2 mst = st * scale + vec2(0.0, t * 0.05 * p(P_MELT));
-    vec2 mcell = floor(mst);
-    vec2 mlocal = fract(mst) - 0.5;
-    float mid = mcell.x * 7.0 + mcell.y * 13.0 + uSeed;
-    float mmask;
-    vec3 motif = blotterTile(mlocal, mid, t, p(P_INK), mmask);
-    float strength = (0.20 + 0.34 * dose) * (0.35 + 0.65 * p(P_BLOTTER));
-    col = mix(col, motif, mmask * strength);
+    float baseScale = 1.5 + 2.6 * p(P_TUNNEL) + 1.2 * p(P_KALEIDO);
+    for (int i = 0; i < 2; i++) {
+      float octave = i == 0 ? 1.0 : 2.9;
+      vec2 mst = rotate(st, float(i) * 0.6 + t * 0.02 * float(i)) * baseScale * octave
+               + vec2(0.0, t * 0.05 * p(P_MELT));
+      vec2 mcell = floor(mst);
+      vec2 mlocal = fract(mst) - 0.5;
+      float mid = mcell.x * 7.0 + mcell.y * 13.0 + uSeed + float(i) * 31.0;
+      float mmask;
+      vec3 motif = blotterTile(mlocal, mid, t, p(P_INK), mmask);
+      float strength = (0.20 + 0.34 * dose) * (0.35 + 0.65 * p(P_BLOTTER))
+                     * (i == 0 ? 1.0 : 0.6);
+      col = mix(col, motif, mmask * strength);
+    }
   }
 
   // --- the print pass -----------------------------------------------------
